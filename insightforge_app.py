@@ -204,6 +204,7 @@ st.title("📊 InsightForge - Business Intelligence Assistant")
 st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
 
 # Upload CSV
+# Upload CSV
 st.sidebar.header("📁 Upload your sales data")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 knowledge_base = None
@@ -212,13 +213,26 @@ knowledge_base = None
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        if {'Month', 'Product', 'Sales', 'Region'}.issubset(df.columns):
+        # Clean column names: remove spaces and lowercase
+        df.columns = [col.strip().lower() for col in df.columns]
+        expected_cols = {'month', 'product', 'sales', 'region'}
+
+        if expected_cols.issubset(df.columns):
+            # Use cleaned column names in the summary function
+            df.rename(columns={
+                'month': 'Month',
+                'product': 'Product',
+                'sales': 'Sales',
+                'region': 'Region'
+            }, inplace=True)
+
             knowledge_base = generate_summary_from_df(df)
             st.sidebar.success("✅ Summary generated from uploaded data!")
         else:
-            st.sidebar.error("❌ CSV must contain 'Month', 'Product', 'Sales', and 'Region' columns.")
+            st.sidebar.error("❌ CSV must contain 'Month', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
     except Exception as e:
         st.sidebar.error(f"❌ Error reading CSV: {e}")
+
 
 # User input
 user_question = st.text_input("🔍 Ask a business question:")

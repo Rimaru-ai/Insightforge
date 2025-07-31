@@ -7,3 +7,4 @@ langchain-community
 matplotlib
 tiktoken
 faiss-cpu
+pypdf

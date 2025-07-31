@@ -375,14 +375,31 @@ def generate_summary_from_df(df):
 
 # --- Chart Rendering ---
 def plot_monthly_sales(df):
-    chart_df = df.groupby('Month')['Sales'].sum().reset_index()
-    plt.figure(figsize=(8, 3))
-    plt.plot(chart_df['Month'], chart_df['Sales'], marker='o')
-    plt.xticks(rotation=45)
-    plt.title("📈 Monthly Sales Trend")
-    plt.xlabel("Month")
-    plt.ylabel("Sales")
-    st.pyplot(plt)
+    import matplotlib.pyplot as plt
+
+    # Ensure 'Date' or 'Month' is datetime
+    if 'Date' in df.columns:
+        df['Date'] = pd.to_datetime(df['Date'])
+        df['Month'] = df['Date'].dt.to_period('M').astype(str)
+    elif 'Month' in df.columns:
+        df['Month'] = pd.to_datetime(df['Month']).dt.to_period('M').astype(str)
+
+    # Group and plot
+    monthly_sales = df.groupby('Month')['Sales'].sum().reset_index()
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.plot(monthly_sales['Month'], monthly_sales['Sales'], marker='o', linestyle='-')
+
+    ax.set_title("🗓 Monthly Sales Trend", fontsize=14, weight='bold')
+    ax.set_xlabel("Month", fontsize=12)
+    ax.set_ylabel("Sales", fontsize=12)
+
+    # Clean x-axis ticks
+    ax.set_xticks(monthly_sales['Month'][::max(1, len(monthly_sales)//12)])
+    ax.tick_params(axis='x', rotation=45)
+
+    st.pyplot(fig)
+
 
 def plot_sales_by_region(df):
     chart_df = df.groupby('Region')['Sales'].sum().sort_values().reset_index()

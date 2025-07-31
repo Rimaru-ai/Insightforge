@@ -509,25 +509,23 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import os
-
 from langchain.chains import LLMChain, SequentialChain, RetrievalQA
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
-from langchain.llms import OpenAI  # NOTE: Replace with langchain_community.llms.OpenAI in future
-
+from langchain_community.llms import OpenAI
 from langchain_community.document_loaders import PyPDFLoader
-from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.vectorstores import FAISS
 from langchain.embeddings import OpenAIEmbeddings
 
-# Load OpenAI key from Streamlit Secrets
+# Set up OpenAI key
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["OPENAI_API_KEY"] = openai_api_key
 
 # Initialize LLM
 llm = OpenAI(temperature=0.2, model_name="gpt-3.5-turbo-instruct")
 
-# STEP 1: Load and Embed the 4 reference PDFs
+# ---------------- PDF INGESTION + EMBEDDING -------------------
 pdf_paths = [
     "AI business model innovation.pdf",
     "BI approaches.pdf",
@@ -540,41 +538,39 @@ for path in pdf_paths:
     if os.path.exists(path):
         loader = PyPDFLoader(path)
         docs = loader.load()
+        st.sidebar.success(f"✅ Loaded: {path}")
         all_docs.extend(docs)
+    else:
+        st.sidebar.warning(f"⚠️ File not found: {path}")
 
-splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
-chunks = splitter.split_documents(all_docs)
-embeddings = OpenAIEmbeddings()
-vectorstore = FAISS.from_documents(chunks, embedding=embeddings)
+if all_docs:
+    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
+    chunks = splitter.split_documents(all_docs)
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_documents(chunks, embedding=embeddings)
+    rag_chain = RetrievalQA.from_chain_type(llm=llm, retriever=vectorstore.as_retriever())
+else:
+    rag_chain = None
 
-# STEP 2: RAG chain setup
-rag_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    retriever=vectorstore.as_retriever(search_kwargs={"k": 4}),
-    return_source_documents=True
-)
+# ---------------- CSV DATA INSIGHT FLOW -------------------
 
-# Helper: Generate summary
 def generate_summary_from_df(df):
     total_sales = df['Sales'].sum()
     avg_sale = df['Sales'].mean()
     median_sale = df['Sales'].median()
     std_sale = df['Sales'].std()
 
-    df['Month'] = pd.to_datetime(df['Date']).dt.to_period('M')
-    month_sales = df.groupby('Month')['Sales'].sum()
-    best_month = month_sales.idxmax()
-    worst_month = month_sales.idxmin()
+    best_month = df.groupby('Month')['Sales'].sum().idxmax()
+    worst_month = df.groupby('Month')['Sales'].sum().idxmin()
 
     product_sales = df.groupby('Product')['Sales'].sum().sort_values(ascending=False)
-    top_products = ", ".join([f"{p} (₹{v:,.2f})" for p, v in product_sales.head(3).items()])
+    top_products = ", ".join([f"{p} (₹{v:.2f})" for p, v in product_sales.head(3).items()])
 
     region_sales = df.groupby('Region')['Sales'].sum()
     best_region = region_sales.idxmax()
 
     summary = f"""
 📊 Business Insight Summary:
-
 • Total Sales: ₹{total_sales:,.2f}
 • Average Sale: ₹{avg_sale:,.2f}
 • Median Sale: ₹{median_sale:,.2f}
@@ -595,7 +591,7 @@ def generate_summary_from_df(df):
 """
     return summary.strip()
 
-# Prompts
+# Prompt templates
 insight_prompt = PromptTemplate(
     input_variables=["data_summary", "user_question"],
     template="""
@@ -628,7 +624,6 @@ Recommendation:"""
 memory = ConversationBufferMemory(input_key="user_question", memory_key="chat_history")
 insight_chain = LLMChain(llm=llm, prompt=insight_prompt, output_key="insight", memory=memory)
 recommendation_chain = LLMChain(llm=llm, prompt=recommendation_prompt, output_key="recommendation")
-
 insightforge_chain = SequentialChain(
     chains=[insight_chain, recommendation_chain],
     input_variables=["data_summary", "user_question"],
@@ -636,66 +631,68 @@ insightforge_chain = SequentialChain(
     verbose=False
 )
 
-# ------------------- Streamlit UI -------------------
+# ---------------- STREAMLIT UI -------------------
 st.set_page_config(page_title="InsightForge", page_icon="📊")
-st.title(":bar_chart: InsightForge - Business Intelligence Assistant")
+st.title("📊 InsightForge - Business Intelligence Assistant")
 
 st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
 
 # Upload CSV
 st.sidebar.header("📁 Upload your sales data")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
-
 knowledge_base = None
-df = None
+
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        df.columns = [col.strip() for col in df.columns]
-        expected_cols = {'Date', 'Product', 'Sales', 'Region'}
+        df.columns = [col.strip().lower() for col in df.columns]
+        expected_cols = {'month', 'product', 'sales', 'region'}
         if expected_cols.issubset(df.columns):
+            df.rename(columns={
+                'month': 'Month',
+                'product': 'Product',
+                'sales': 'Sales',
+                'region': 'Region'
+            }, inplace=True)
             knowledge_base = generate_summary_from_df(df)
             st.sidebar.success("✅ Summary generated from uploaded data!")
-            if st.sidebar.checkbox("👁️ Preview DataFrame"):
-                st.dataframe(df)
         else:
-            st.sidebar.error("CSV must include 'Date', 'Product', 'Sales', 'Region'")
+            st.sidebar.error("❌ CSV must contain 'Month', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
     except Exception as e:
-        st.sidebar.error(f"Error: {e}")
+        st.sidebar.error(f"❌ Error reading CSV: {e}")
 
-# Question box
-user_question = st.text_input("🔍 Ask a business question:")
+# Choose section
+tab = st.radio("Select interaction type:", ["📈 Ask Business Question", "📚 Ask Reference (PDF) Question"])
 
-if user_question:
-    if not knowledge_base:
-        st.warning("Please upload a valid CSV to proceed.")
+if tab == "📈 Ask Business Question":
+    user_question = st.text_input("🔍 Ask a business question:")
+    if user_question:
+        if not knowledge_base:
+            st.warning("Please upload a CSV with required columns to continue.")
+        else:
+            with st.spinner("Generating insights..."):
+                result = insightforge_chain.invoke({
+                    "data_summary": knowledge_base,
+                    "user_question": user_question
+                })
+            st.subheader("🧠 Insight")
+            st.success(result['insight'].strip())
+            st.subheader("💡 Recommendation")
+            st.info(result['recommendation'].strip())
+            if st.checkbox("🗂 Show Memory Log"):
+                st.text(memory.buffer)
+
+elif tab == "📚 Ask Reference (PDF) Question":
+    if not rag_chain:
+        st.error("❌ No reference documents found to answer questions. Please check deployment.")
     else:
-        with st.spinner("Generating insights..."):
-            result = insightforge_chain.invoke({
-                "data_summary": knowledge_base,
-                "user_question": user_question
-            })
+        pdf_question = st.text_input("📚 Ask a question based on uploaded reference documents:")
+        if pdf_question:
+            with st.spinner("Searching reference materials..."):
+                response = rag_chain.run(pdf_question)
+                st.subheader("📖 Answer from References")
+                st.write(response)
 
-        st.subheader("🧑‍🎓 Insight")
-        st.success(result['insight'].strip())
-
-        st.subheader("💡 Recommendation")
-        st.info(result['recommendation'].strip())
-
-        if st.checkbox("🗂 Show Memory Log"):
-            st.text(memory.buffer)
-
-# Optional RAG box for PDF reference questions
-with st.expander("📚 Ask about Reference PDFs (AI/BI/IoT/Sales Reports)"):
-    reference_question = st.text_input("Ask a research-based question:", key="ref_q")
-    if reference_question:
-        with st.spinner("🔍 Searching documents..."):
-            rag_result = rag_chain.invoke({"query": reference_question})
-        st.subheader("📖 RAG Answer")
-        st.info(rag_result['result'])
-        with st.expander("📎 Sources"):
-            for doc in rag_result['source_documents']:
-                st.markdown(f"- `{doc.metadata.get('source', 'Unknown Source')}`")
 
 
 

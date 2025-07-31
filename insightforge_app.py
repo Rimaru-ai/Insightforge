@@ -100,24 +100,236 @@
 #     if st.checkbox("🗂 Show Memory Log"):
 #         st.text(memory.buffer)
 
+# import streamlit as st
+# import pandas as pd
+# import numpy as np
+# import os
+
+# from langchain.chains import LLMChain, SequentialChain
+# from langchain.llms import OpenAI
+# from langchain.prompts import PromptTemplate
+# from langchain.memory import ConversationBufferMemory
+
+# # Load OpenAI key from Streamlit Secrets
+# openai_api_key = st.secrets["OPENAI_API_KEY"]
+# os.environ["OPENAI_API_KEY"] = openai_api_key
+
+# # Initialize LLM
+# llm = OpenAI(temperature=0.2, model_name="gpt-3.5-turbo-instruct")
+
+# # Function to create summary from uploaded data
+# def generate_summary_from_df(df):
+#     total_sales = df['Sales'].sum()
+#     avg_sale = df['Sales'].mean()
+#     median_sale = df['Sales'].median()
+#     std_sale = df['Sales'].std()
+
+#     best_month = df.groupby('Month')['Sales'].sum().idxmax()
+#     worst_month = df.groupby('Month')['Sales'].sum().idxmin()
+
+#     product_sales = df.groupby('Product')['Sales'].sum().sort_values(ascending=False)
+#     top_products = ", ".join([f"{p} (₹{v:.2f})" for p, v in product_sales.head(3).items()])
+
+#     region_sales = df.groupby('Region')['Sales'].sum().sort_values(ascending=False)
+#     best_region = region_sales.idxmax()
+#     worst_region = region_sales.idxmin()
+#     region_breakdown = "\n".join([f"• {region}: ₹{sales:,.2f}" for region, sales in region_sales.items()])
+
+#     summary = f"""
+# 📊 Business Insight Summary:
+
+# • Total Sales: ₹{total_sales:,.2f}
+# • Average Sale: ₹{avg_sale:,.2f}
+# • Median Sale: ₹{median_sale:,.2f}
+# • Standard Deviation: ₹{std_sale:,.2f}
+
+# 🗓️ Time Trends:
+# • Best Month: {best_month}
+# • Worst Month: {worst_month}
+
+# 🛒 Product Insights:
+# • Top-Selling Products: {top_products}
+
+# 🌍 Regional Performance:
+# • Best Performing Region: {best_region}
+# • Regional Sales Breakdown:
+# {region_breakdown}
+# • Underperforming Region: {worst_region}
+
+# 👥 Customer Demographics:
+# • Best Performing Age Group: N/A
+# """
+#     return summary.strip()
+
+# # Prompt templates
+# insight_prompt = PromptTemplate(
+#     input_variables=["data_summary", "user_question"],
+#     template="""
+# You are a data analyst. You have the following sales data summary:
+
+# {data_summary}
+
+# Based on the user's question below, extract and explain only the **relevant insight** from the data — do not give recommendations yet.
+
+# Question: {user_question}
+# Insight:"""
+# )
+
+# recommendation_prompt = PromptTemplate(
+#     input_variables=["insight", "user_question"],
+#     template="""
+# You are a strategic business consultant.
+
+# Here is an insight extracted from company data:
+# {insight}
+
+# Now, based on this insight and the user's question:
+# "{user_question}"
+
+# Generate a clear and actionable recommendation.
+# Recommendation:"""
+# )
+
+# # Memory and Chains
+# memory = ConversationBufferMemory(input_key="user_question", memory_key="chat_history")
+# insight_chain = LLMChain(llm=llm, prompt=insight_prompt, output_key="insight", memory=memory)
+# recommendation_chain = LLMChain(llm=llm, prompt=recommendation_prompt, output_key="recommendation")
+
+# insightforge_chain = SequentialChain(
+#     chains=[insight_chain, recommendation_chain],
+#     input_variables=["data_summary", "user_question"],
+#     output_variables=["insight", "recommendation"],
+#     verbose=False
+# )
+
+# # ------------------- Streamlit UI -------------------
+# st.set_page_config(page_title="InsightForge", page_icon="📊")
+# st.title("📊 InsightForge - Business Intelligence Assistant")
+
+# st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
+
+# # Upload CSV
+# st.sidebar.header("📁 Upload your sales data")
+# uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
+# knowledge_base = None
+
+# # If uploaded, process file
+# if uploaded_file:
+#     try:
+#         df = pd.read_csv(uploaded_file)
+#         # Clean column names: lowercase, remove spaces
+#         df.columns = [col.strip().lower() for col in df.columns]
+#         expected_cols = {'date', 'product', 'sales', 'region'}
+
+#         if expected_cols.issubset(df.columns):
+#             # Convert date and extract month
+#             df['Date'] = pd.to_datetime(df['date'])
+#             df['Month'] = df['Date'].dt.to_period('M').astype(str)
+
+#             # Rename for consistency with summary function
+#             df.rename(columns={
+#                 'product': 'Product',
+#                 'sales': 'Sales',
+#                 'region': 'Region'
+#             }, inplace=True)
+
+#             knowledge_base = generate_summary_from_df(df)
+#             st.sidebar.success("✅ Summary generated from uploaded data!")
+
+#             if st.checkbox("👁 Preview DataFrame"):
+#                 st.dataframe(df.head())
+#         else:
+#             st.sidebar.error("❌ CSV must contain 'Date', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
+#     except Exception as e:
+#         st.sidebar.error(f"❌ Error reading CSV: {e}")
+
+# # Ask business question
+# user_question = st.text_input("🔍 Ask a business question:")
+
+# if user_question:
+#     if not knowledge_base:
+#         st.warning("Please upload a CSV with required columns to continue.")
+#     else:
+#         with st.spinner("Generating insights..."):
+#             result = insightforge_chain.invoke({
+#                 "data_summary": knowledge_base,
+#                 "user_question": user_question
+#             })
+
+#         st.subheader("🧠 Insight")
+#         st.success(result['insight'].strip())
+
+#         st.subheader("💡 Recommendation")
+#         st.info(result['recommendation'].strip())
+
+#         if st.checkbox("🗂 Show Memory Log"):
+#             st.text(memory.buffer)
+
 import streamlit as st
 import pandas as pd
 import numpy as np
 import os
+import matplotlib.pyplot as plt
 
 from langchain.chains import LLMChain, SequentialChain
 from langchain.llms import OpenAI
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 
-# Load OpenAI key from Streamlit Secrets
+# --- CONFIG ---
+st.set_page_config(page_title="InsightForge", page_icon="📊")
+st.title("📊 InsightForge - Business Intelligence Assistant")
+st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
+
+# --- OpenAI KEY ---
 openai_api_key = st.secrets["OPENAI_API_KEY"]
 os.environ["OPENAI_API_KEY"] = openai_api_key
 
-# Initialize LLM
+# --- LangChain LLM Setup ---
 llm = OpenAI(temperature=0.2, model_name="gpt-3.5-turbo-instruct")
 
-# Function to create summary from uploaded data
+# --- Memory & Chains ---
+memory = ConversationBufferMemory(input_key="user_question", memory_key="chat_history")
+
+insight_prompt = PromptTemplate(
+    input_variables=["data_summary", "user_question"],
+    template="""
+You are a data analyst. You have the following sales data summary:
+
+{data_summary}
+
+Based on the user's question below, extract and explain only the **relevant insight** from the data — do not give recommendations yet.
+
+Question: {user_question}
+Insight:"""
+)
+
+recommendation_prompt = PromptTemplate(
+    input_variables=["insight", "user_question"],
+    template="""
+You are a strategic business consultant.
+
+Here is an insight extracted from company data:
+{insight}
+
+Now, based on this insight and the user's question:
+"{user_question}"
+
+Generate a clear and actionable recommendation.
+Recommendation:"""
+)
+
+insight_chain = LLMChain(llm=llm, prompt=insight_prompt, output_key="insight", memory=memory)
+recommendation_chain = LLMChain(llm=llm, prompt=recommendation_prompt, output_key="recommendation")
+
+insightforge_chain = SequentialChain(
+    chains=[insight_chain, recommendation_chain],
+    input_variables=["data_summary", "user_question"],
+    output_variables=["insight", "recommendation"],
+    verbose=False
+)
+
+# --- Summary Generator ---
 def generate_summary_from_df(df):
     total_sales = df['Sales'].sum()
     avg_sale = df['Sales'].mean()
@@ -161,107 +373,117 @@ def generate_summary_from_df(df):
 """
     return summary.strip()
 
-# Prompt templates
-insight_prompt = PromptTemplate(
-    input_variables=["data_summary", "user_question"],
-    template="""
-You are a data analyst. You have the following sales data summary:
+# --- Chart Rendering ---
+def plot_monthly_sales(df):
+    chart_df = df.groupby('Month')['Sales'].sum().reset_index()
+    plt.figure(figsize=(8, 3))
+    plt.plot(chart_df['Month'], chart_df['Sales'], marker='o')
+    plt.xticks(rotation=45)
+    plt.title("📈 Monthly Sales Trend")
+    plt.xlabel("Month")
+    plt.ylabel("Sales")
+    st.pyplot(plt)
 
-{data_summary}
+def plot_sales_by_region(df):
+    chart_df = df.groupby('Region')['Sales'].sum().sort_values().reset_index()
+    plt.figure(figsize=(6, 3))
+    plt.bar(chart_df['Region'], chart_df['Sales'], color='skyblue')
+    plt.title("📊 Sales by Region")
+    plt.xlabel("Region")
+    plt.ylabel("Sales")
+    st.pyplot(plt)
 
-Based on the user's question below, extract and explain only the **relevant insight** from the data — do not give recommendations yet.
+def plot_top_products(df):
+    chart_df = df.groupby('Product')['Sales'].sum().sort_values(ascending=False).head(5).reset_index()
+    plt.figure(figsize=(6, 3))
+    plt.bar(chart_df['Product'], chart_df['Sales'], color='green')
+    plt.title("🏆 Top 5 Products by Sales")
+    plt.xlabel("Product")
+    plt.ylabel("Sales")
+    st.pyplot(plt)
 
-Question: {user_question}
-Insight:"""
-)
-
-recommendation_prompt = PromptTemplate(
-    input_variables=["insight", "user_question"],
-    template="""
-You are a strategic business consultant.
-
-Here is an insight extracted from company data:
-{insight}
-
-Now, based on this insight and the user's question:
-"{user_question}"
-
-Generate a clear and actionable recommendation.
-Recommendation:"""
-)
-
-# Memory and Chains
-memory = ConversationBufferMemory(input_key="user_question", memory_key="chat_history")
-insight_chain = LLMChain(llm=llm, prompt=insight_prompt, output_key="insight", memory=memory)
-recommendation_chain = LLMChain(llm=llm, prompt=recommendation_prompt, output_key="recommendation")
-
-insightforge_chain = SequentialChain(
-    chains=[insight_chain, recommendation_chain],
-    input_variables=["data_summary", "user_question"],
-    output_variables=["insight", "recommendation"],
-    verbose=False
-)
-
-# ------------------- Streamlit UI -------------------
-st.set_page_config(page_title="InsightForge", page_icon="📊")
-st.title("📊 InsightForge - Business Intelligence Assistant")
-
-st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
-
-# Upload CSV
+# --- CSV Upload ---
 st.sidebar.header("📁 Upload your sales data")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 knowledge_base = None
+df = None
 
-# If uploaded, process file
+if "qa_log" not in st.session_state:
+    st.session_state.qa_log = []
+
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        # Clean column names: lowercase, remove spaces
         df.columns = [col.strip().lower() for col in df.columns]
         expected_cols = {'date', 'product', 'sales', 'region'}
 
         if expected_cols.issubset(df.columns):
-            # Convert date and extract month
             df['Date'] = pd.to_datetime(df['date'])
             df['Month'] = df['Date'].dt.to_period('M').astype(str)
-
-            # Rename for consistency with summary function
             df.rename(columns={
                 'product': 'Product',
                 'sales': 'Sales',
                 'region': 'Region'
             }, inplace=True)
-
             knowledge_base = generate_summary_from_df(df)
-            st.sidebar.success("✅ Summary generated from uploaded data!")
-
-            if st.checkbox("👁 Preview DataFrame"):
+            st.sidebar.success("✅ Summary generated from uploaded data.")
+            if st.sidebar.checkbox("👁 Preview DataFrame"):
                 st.dataframe(df.head())
         else:
-            st.sidebar.error("❌ CSV must contain 'Date', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
+            st.sidebar.error("❌ CSV must include: 'Date', 'Product', 'Sales', 'Region'")
     except Exception as e:
         st.sidebar.error(f"❌ Error reading CSV: {e}")
 
-# Ask business question
-user_question = st.text_input("🔍 Ask a business question:")
+# --- Chat UI ---
+st.divider()
+st.markdown("### 🔍 Ask a business question:")
 
-if user_question:
+with st.form("ask_form", clear_on_submit=True):
+    user_question = st.text_input("Your question:")
+    chart_choice = st.selectbox(
+        "📈 Which chart would you like to see?",
+        ["None", "Monthly Sales Trend", "Sales by Region", "Top Products", "All Charts"]
+    )
+    submitted = st.form_submit_button("Ask")
+
+# --- Run Chain on Submit ---
+if submitted and user_question:
     if not knowledge_base:
-        st.warning("Please upload a CSV with required columns to continue.")
+        st.warning("Please upload a valid CSV file first.")
     else:
-        with st.spinner("Generating insights..."):
+        with st.spinner("Thinking..."):
             result = insightforge_chain.invoke({
                 "data_summary": knowledge_base,
                 "user_question": user_question
             })
 
-        st.subheader("🧠 Insight")
-        st.success(result['insight'].strip())
+        # Append to chat log
+        st.session_state.qa_log.append({
+            "question": user_question,
+            "insight": result["insight"].strip(),
+            "recommendation": result["recommendation"].strip(),
+            "chart": chart_choice
+        })
 
-        st.subheader("💡 Recommendation")
-        st.info(result['recommendation'].strip())
+# --- Display History Log ---
+for entry in reversed(st.session_state.qa_log):
+    st.markdown("#### 🔍 Question")
+    st.info(entry["question"])
+    st.markdown("#### 🧠 Insight")
+    st.success(entry["insight"])
+    st.markdown("#### 💡 Recommendation")
+    st.info(entry["recommendation"])
 
-        if st.checkbox("🗂 Show Memory Log"):
-            st.text(memory.buffer)
+    if entry["chart"] and df is not None:
+        st.markdown("#### 📊 Visual Analysis")
+        if entry["chart"] == "Monthly Sales Trend":
+            plot_monthly_sales(df)
+        elif entry["chart"] == "Sales by Region":
+            plot_sales_by_region(df)
+        elif entry["chart"] == "Top Products":
+            plot_top_products(df)
+        elif entry["chart"] == "All Charts":
+            plot_monthly_sales(df)
+            plot_sales_by_region(df)
+            plot_top_products(df)
 

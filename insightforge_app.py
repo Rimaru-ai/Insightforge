@@ -526,31 +526,35 @@ os.environ["OPENAI_API_KEY"] = openai_api_key
 llm = OpenAI(temperature=0.2, model_name="gpt-3.5-turbo-instruct")
 
 # ---------------- PDF INGESTION + EMBEDDING -------------------
-pdf_paths = [
-    "AI business model innovation.pdf",
-    "BI approaches.pdf",
-    "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer-.pdf",
-    "Walmarts sales data analysis.pdf"
-]
+@st.cache_resource(show_spinner="🔄 Processing PDFs...")
+def load_reference_rag():
+    pdf_paths = [
+        "AI business model innovation.pdf",
+        "BI approaches.pdf",
+        "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer-.pdf",
+        "Walmarts sales data analysis.pdf"
+    ]
 
-all_docs = []
-for path in pdf_paths:
-    if os.path.exists(path):
-        loader = PyPDFLoader(path)
-        docs = loader.load()
-        st.sidebar.success(f"✅ Loaded: {path}")
-        all_docs.extend(docs)
-    else:
-        st.sidebar.warning(f"⚠️ File not found: {path}")
+    all_docs = []
+    for path in pdf_paths:
+        if os.path.exists(path):
+            loader = PyPDFLoader(path)
+            docs = loader.load()
+            st.sidebar.success(f"✅ Loaded: {path}")
+            all_docs.extend(docs)
+        else:
+            st.sidebar.warning(f"⚠️ File not found: {path}")
 
-if all_docs:
+    if not all_docs:
+        return None
+
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=150)
     chunks = splitter.split_documents(all_docs)
     embeddings = OpenAIEmbeddings()
     vectorstore = FAISS.from_documents(chunks, embedding=embeddings)
-    rag_chain = RetrievalQA.from_chain_type(llm=llm, retriever=vectorstore.as_retriever())
-else:
-    rag_chain = None
+    return RetrievalQA.from_chain_type(llm=llm, retriever=vectorstore.as_retriever())
+
+rag_chain = load_reference_rag()
 
 # ---------------- CSV DATA INSIGHT FLOW -------------------
 

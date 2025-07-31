@@ -474,7 +474,7 @@ for entry in reversed(st.session_state.qa_log):
     st.markdown("#### 💡 Recommendation")
     st.info(entry["recommendation"])
 
-    if entry["chart"] and df is not None:
+    if entry["chart"] != "None" and df is not None:
         st.markdown("#### 📊 Visual Analysis")
         if entry["chart"] == "Monthly Sales Trend":
             plot_monthly_sales(df)
@@ -486,4 +486,9 @@ for entry in reversed(st.session_state.qa_log):
             plot_monthly_sales(df)
             plot_sales_by_region(df)
             plot_top_products(df)
+
+
+
+
+    
 

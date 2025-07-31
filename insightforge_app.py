@@ -204,23 +204,25 @@ st.title("📊 InsightForge - Business Intelligence Assistant")
 st.markdown("Ask a question about your company’s sales performance. Get insights + strategic recommendations.")
 
 # Upload CSV
-# Upload CSV
 st.sidebar.header("📁 Upload your sales data")
 uploaded_file = st.sidebar.file_uploader("Upload CSV", type=["csv"])
 knowledge_base = None
 
-# If uploaded, summarize
+# If uploaded, process file
 if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
-        # Clean column names: remove spaces and lowercase
+        # Clean column names: lowercase, remove spaces
         df.columns = [col.strip().lower() for col in df.columns]
-        expected_cols = {'month', 'product', 'sales', 'region'}
+        expected_cols = {'date', 'product', 'sales', 'region'}
 
         if expected_cols.issubset(df.columns):
-            # Use cleaned column names in the summary function
+            # Convert date and extract month
+            df['Date'] = pd.to_datetime(df['date'])
+            df['Month'] = df['Date'].dt.to_period('M').astype(str)
+
+            # Rename for consistency with summary function
             df.rename(columns={
-                'month': 'Month',
                 'product': 'Product',
                 'sales': 'Sales',
                 'region': 'Region'
@@ -228,13 +230,15 @@ if uploaded_file:
 
             knowledge_base = generate_summary_from_df(df)
             st.sidebar.success("✅ Summary generated from uploaded data!")
+
+            if st.checkbox("👁 Preview DataFrame"):
+                st.dataframe(df.head())
         else:
-            st.sidebar.error("❌ CSV must contain 'Month', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
+            st.sidebar.error("❌ CSV must contain 'Date', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
     except Exception as e:
         st.sidebar.error(f"❌ Error reading CSV: {e}")
 
-
-# User input
+# Ask business question
 user_question = st.text_input("🔍 Ask a business question:")
 
 if user_question:

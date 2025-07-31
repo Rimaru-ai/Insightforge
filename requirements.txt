@@ -8,3 +8,4 @@ matplotlib
 tiktoken
 faiss-cpu
 pypdf
+PyMuPDF

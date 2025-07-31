@@ -646,18 +646,19 @@ if uploaded_file:
     try:
         df = pd.read_csv(uploaded_file)
         df.columns = [col.strip().lower() for col in df.columns]
-        expected_cols = {'month', 'product', 'sales', 'region'}
+        expected_cols = {'date', 'product', 'sales', 'region'}
         if expected_cols.issubset(df.columns):
             df.rename(columns={
-                'month': 'Month',
+                'date': 'Month',
                 'product': 'Product',
                 'sales': 'Sales',
                 'region': 'Region'
             }, inplace=True)
+            df['Month'] = pd.to_datetime(df['Month']).dt.to_period('M').astype(str)
             knowledge_base = generate_summary_from_df(df)
             st.sidebar.success("✅ Summary generated from uploaded data!")
         else:
-            st.sidebar.error("❌ CSV must contain 'Month', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
+            st.sidebar.error("❌ CSV must contain 'Date', 'Product', 'Sales', and 'Region' columns (case-insensitive).")
     except Exception as e:
         st.sidebar.error(f"❌ Error reading CSV: {e}")
 
@@ -665,7 +666,10 @@ if uploaded_file:
 tab = st.radio("Select interaction type:", ["📈 Ask Business Question", "📚 Ask Reference (PDF) Question"])
 
 if tab == "📈 Ask Business Question":
-    user_question = st.text_input("🔍 Ask a business question:")
+    user_question = st.text_input("🔍 Ask a business question:", key="user_input")
+    chart_options = ["None", "Monthly Sales Trend", "Top Products", "Sales by Region"]
+    selected_chart = st.selectbox("📊 Which chart would you like to see?", chart_options)
+
     if user_question:
         if not knowledge_base:
             st.warning("Please upload a CSV with required columns to continue.")
@@ -675,10 +679,39 @@ if tab == "📈 Ask Business Question":
                     "data_summary": knowledge_base,
                     "user_question": user_question
                 })
-            st.subheader("🧠 Insight")
+            st.subheader("🧑‍🎓 Insight")
             st.success(result['insight'].strip())
             st.subheader("💡 Recommendation")
             st.info(result['recommendation'].strip())
+
+            if selected_chart != "None":
+                st.subheader("📊 Visual Analysis")
+                if selected_chart == "Monthly Sales Trend":
+                    monthly_sales = df.groupby('Month')['Sales'].sum()
+                    fig, ax = plt.subplots()
+                    monthly_sales.plot(ax=ax, marker='o')
+                    ax.set_title("🗓 Monthly Sales Trend")
+                    ax.set_xlabel("Month")
+                    ax.set_ylabel("Sales")
+                    plt.xticks(rotation=45)
+                    st.pyplot(fig)
+
+                elif selected_chart == "Top Products":
+                    top_products = df.groupby('Product')['Sales'].sum().sort_values(ascending=False).head(10)
+                    fig, ax = plt.subplots()
+                    top_products.plot(kind='bar', ax=ax)
+                    ax.set_title("🏆 Top-Selling Products")
+                    ax.set_ylabel("Sales")
+                    st.pyplot(fig)
+
+                elif selected_chart == "Sales by Region":
+                    region_sales = df.groupby('Region')['Sales'].sum()
+                    fig, ax = plt.subplots()
+                    region_sales.plot(kind='pie', ax=ax, autopct='%1.1f%%')
+                    ax.set_ylabel("")
+                    ax.set_title("🌍 Sales by Region")
+                    st.pyplot(fig)
+
             if st.checkbox("🗂 Show Memory Log"):
                 st.text(memory.buffer)
 
@@ -692,6 +725,7 @@ elif tab == "📚 Ask Reference (PDF) Question":
                 response = rag_chain.run(pdf_question)
                 st.subheader("📖 Answer from References")
                 st.write(response)
+
 
 
 

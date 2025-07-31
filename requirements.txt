@@ -5,3 +5,5 @@ openai
 langchain
 langchain-community
 matplotlib
+tiktoken
+faiss-cpu

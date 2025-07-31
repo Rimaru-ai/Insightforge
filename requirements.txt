@@ -1,4 +1,7 @@
 streamlit
-langchain
+pandas
+numpy
 openai
-langchain_community
+langchain
+langchain-community
+matplotlib

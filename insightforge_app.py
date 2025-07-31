@@ -130,8 +130,10 @@ def generate_summary_from_df(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values(ascending=False)
     top_products = ", ".join([f"{p} (₹{v:.2f})" for p, v in product_sales.head(3).items()])
 
-    region_sales = df.groupby('Region')['Sales'].sum()
+    region_sales = df.groupby('Region')['Sales'].sum().sort_values(ascending=False)
     best_region = region_sales.idxmax()
+    worst_region = region_sales.idxmin()
+    region_breakdown = "\n".join([f"• {region}: ₹{sales:,.2f}" for region, sales in region_sales.items()])
 
     summary = f"""
 📊 Business Insight Summary:
@@ -150,6 +152,9 @@ def generate_summary_from_df(df):
 
 🌍 Regional Performance:
 • Best Performing Region: {best_region}
+• Regional Sales Breakdown:
+{region_breakdown}
+• Underperforming Region: {worst_region}
 
 👥 Customer Demographics:
 • Best Performing Age Group: N/A
@@ -259,3 +264,4 @@ if user_question:
 
         if st.checkbox("🗂 Show Memory Log"):
             st.text(memory.buffer)
+

@@ -215,8 +215,33 @@ st.markdown("""
             border-radius: 8px;
             font-weight: 600;
         }
+        .metric-box {
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+            margin-bottom: 10px;
+        }
     </style>
 """, unsafe_allow_html=True)
+
+# App Title and Info Layout
+col1, col2 = st.columns([3, 1])
+with col1:
+    st.title("📊 InsightForge")
+    st.markdown("""
+    #### AI-Powered Business Intelligence Assistant
+    Upload your sales data and research PDFs to get visual insights, smart recommendations, and instant answers.
+    """)
+
+with col2:
+    st.image("https://img.icons8.com/color/96/graph.png", width=80)
+    st.markdown("""
+    <div style='text-align: right; font-size: 14px;'>
+        <b>Powered by</b><br>
+        LangChain, OpenAI, Streamlit
+    </div>
+    """, unsafe_allow_html=True)
 
 # App Title
 st.title("📊 InsightForge: AI-Powered BI Assistant")

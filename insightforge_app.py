@@ -181,7 +181,44 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.evaluation.qa import QAEvalChain
 from io import StringIO
 
-# Streamlit App Title
+
+
+
+st.set_page_config(
+    page_title="InsightForge",
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+# Custom Styling
+st.markdown("""
+    <style>
+        .reportview-container .main .block-container{
+            padding-top: 2rem;
+            padding-bottom: 2rem;
+            padding-left: 3rem;
+            padding-right: 3rem;
+        }
+        .css-1d391kg, .css-ffhzg2 {
+            font-family: 'Segoe UI', sans-serif;
+        }
+        h1 {
+            color: #0F4C81;
+        }
+        h3, h4 {
+            margin-top: 2rem;
+        }
+        .stButton > button {
+            background-color: #0F4C81;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+        }
+    </style>
+""", unsafe_allow_html=True)
+
+# App Title
 st.title("📊 InsightForge: AI-Powered BI Assistant")
 
 # Sidebar: API key input

@@ -1325,7 +1325,11 @@ if uploaded_file:
 
         # Full prompt injection
         full_prompt = f"""
-SALES DATA SUMMARY:
+You are a business analyst.
+
+Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say "I don't know".
+
+SALES SUMMARY:
 {summary}
 
 PDF CONTEXT:
@@ -1334,6 +1338,7 @@ PDF CONTEXT:
 QUESTION:
 {user_input}
 """
+
         # Run RAG conversation
         rag_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,

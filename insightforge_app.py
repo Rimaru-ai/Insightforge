@@ -243,9 +243,6 @@ with col2:
     </div>
     """, unsafe_allow_html=True)
 
-# App Title
-st.title("📊 InsightForge: AI-Powered BI Assistant")
-
 # Sidebar: API key input
 openai_api_key = st.sidebar.text_input("Enter your OpenAI API key", type="password")
 os.environ["OPENAI_API_KEY"] = openai_api_key

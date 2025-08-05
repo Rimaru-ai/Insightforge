@@ -1243,9 +1243,15 @@
 #         st.markdown(output)
 
 
+# "AI-business-model-innovation.pdf",
+#         "BI-approaches.pdf",
+#         "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer.pdf",
+#         "Walmarts-sales-data-analysis.pdf"
+
 import streamlit as st
 import pandas as pd
 import os
+import matplotlib.pyplot as plt
 
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
@@ -1254,6 +1260,7 @@ from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.evaluation.qa import QAEvalChain
 
 # Streamlit App Title
 st.title("📊 InsightForge: AI-Powered BI Assistant")
@@ -1289,6 +1296,28 @@ def generate_advanced_summary(df):
 - Worst Performing Region: {worst_region}
 """
 
+# Chart functions
+
+def plot_region_sales(df):
+    region_sales = df.groupby('Region')['Sales'].sum().sort_values()
+    fig, ax = plt.subplots()
+    bars = ax.bar(region_sales.index, region_sales.values, color='skyblue')
+    lowest = region_sales.idxmin()
+    bars[list(region_sales.index).index(lowest)].set_color('red')
+    ax.set_title('Sales by Region')
+    ax.set_ylabel('Total Sales')
+    st.pyplot(fig)
+
+def plot_product_sales(df):
+    product_sales = df.groupby('Product')['Sales'].sum().sort_values()
+    fig, ax = plt.subplots()
+    bars = ax.bar(product_sales.index, product_sales.values, color='lightgreen')
+    lowest = product_sales.idxmin()
+    bars[list(product_sales.index).index(lowest)].set_color('orange')
+    ax.set_title('Sales by Product')
+    ax.set_ylabel('Total Sales')
+    st.pyplot(fig)
+
 # Load PDFs and create FAISS vectorstore
 @st.cache_resource
 def load_vectorstore():
@@ -1319,6 +1348,8 @@ if uploaded_file:
     # Initialize LLM and memory
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+    st.subheader("📊 Dynamic Charts (based on your question)")
 
     # Ask a question
     st.subheader("💬 Ask a Business Question")
@@ -1353,6 +1384,21 @@ QUESTION:
         )
         response = rag_chain.run(full_prompt)
         st.markdown(f"**🧠 InsightForge:** {response}")
+
+        # Dynamic chart trigger based on question intent
+        if "region" in user_input.lower():
+            plot_region_sales(df)
+        elif "product" in user_input.lower() or "widget" in user_input.lower():
+            plot_product_sales(df)
+
+        # Optional: QA Evaluation
+        if st.button("🧪 Evaluate Answer"):
+            eval_chain = QAEvalChain.from_llm(llm)
+            examples = [{"query": user_input, "answer": response, "context": context}]
+            predictions = [{"result": response}]
+            grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
+            st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
+
 
 
 

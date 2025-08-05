@@ -1278,7 +1278,8 @@ def generate_advanced_summary(df):
     best_region = df.groupby('Region')['Sales'].sum().idxmax()
     worst_region = df.groupby('Region')['Sales'].sum().idxmin()
 
-    return f\"\"\"\n📈 **Sales Summary**\n
+    return f"""
+📈 **Sales Summary**
 - Total Sales: ₹{total:,.0f}
 - Average Sale: ₹{avg:.2f}
 - Best Month: {best_month}
@@ -1286,9 +1287,7 @@ def generate_advanced_summary(df):
 - Lowest Selling Product: {worst_product}
 - Best Performing Region: {best_region}
 - Worst Performing Region: {worst_region}
-\"\"\"\n
-
-    
+"""
 
 # Load PDFs and create FAISS vectorstore
 @st.cache_resource
@@ -1296,8 +1295,8 @@ def load_vectorstore():
     pdf_paths = [
         "AI-business-model-innovation.pdf",
         "BI-approaches.pdf",
-        "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer.pdf",
-        "Walmarts-sales-data-analysis.pdf"
+        "Time-Series-Data-Prediction.pdf",
+        "Walmart-sales-analysis.pdf"
     ]
     all_docs = []
     for path in pdf_paths:
@@ -1334,7 +1333,7 @@ if uploaded_file:
         full_prompt = f"""
 You are a business analyst.
 
-Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say "I don't know".
+Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say \"I don't know\".
 
 SALES SUMMARY:
 {summary}
@@ -1345,7 +1344,6 @@ PDF CONTEXT:
 QUESTION:
 {user_input}
 """
-
         # Run RAG conversation
         rag_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,

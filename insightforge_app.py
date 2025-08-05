@@ -287,9 +287,9 @@ def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
-    ax.title.set_size(8)                           # Title font size
-    ax.yaxis.label.set_size(7)                     # Y-axis label
-    ax.xaxis.label.set_size(7)                     # X-axis label
+    ax.title.set_size(5)                           # Title font size
+    ax.yaxis.label.set_size(3)                     # Y-axis label
+    ax.xaxis.label.set_size(3)                     # X-axis label
     bars = ax.bar(region_sales.index, region_sales.values, color='skyblue')
     lowest = region_sales.idxmin()
     bars[list(region_sales.index).index(lowest)].set_color('red')
@@ -301,9 +301,9 @@ def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
-    ax.title.set_size(8)                           # Title font size
-    ax.yaxis.label.set_size(7)                     # Y-axis label
-    ax.xaxis.label.set_size(7)                     # X-axis label
+    ax.title.set_size(5)                           # Title font size
+    ax.yaxis.label.set_size(3)                     # Y-axis label
+    ax.xaxis.label.set_size(3)                     # X-axis label
     bars = ax.bar(product_sales.index, product_sales.values, color='lightgreen')
     lowest = product_sales.idxmin()
     bars[list(product_sales.index).index(lowest)].set_color('orange')
@@ -315,9 +315,9 @@ def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
     fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
-    ax.title.set_size(8)                           # Title font size
-    ax.yaxis.label.set_size(7)                     # Y-axis label
-    ax.xaxis.label.set_size(7)                     # X-axis label
+    ax.title.set_size(5)                           # Title font size
+    ax.yaxis.label.set_size(3)                     # Y-axis label
+    ax.xaxis.label.set_size(3)                     # X-axis label
     monthly.plot(ax=ax, marker='o')
     ax.set_title('Monthly Sales Trend')
     ax.set_ylabel('Sales')

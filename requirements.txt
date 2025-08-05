@@ -9,3 +9,5 @@ tiktoken
 faiss-cpu
 pypdf
 PyMuPDF
+langchain-openai
+sentence-transformers

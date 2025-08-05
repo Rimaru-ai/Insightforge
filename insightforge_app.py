@@ -285,7 +285,7 @@ def generate_advanced_summary(df):
 
 def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
-    fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
+    fig, ax = plt.subplots(figsize=(1, 1))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
     ax.title.set_size(5)                           # Title font size
     ax.yaxis.label.set_size(3)                     # Y-axis label
@@ -299,7 +299,7 @@ def plot_region_sales(df):
 
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
-    fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
+    fig, ax = plt.subplots(figsize=(1, 1))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
     ax.title.set_size(5)                           # Title font size
     ax.yaxis.label.set_size(3)                     # Y-axis label
@@ -313,7 +313,7 @@ def plot_product_sales(df):
 
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
-    fig, ax = plt.subplots(figsize=(2, 1.2))  # Smaller
+    fig, ax = plt.subplots(figsize=(1, 1))  # Smaller
     ax.tick_params(axis='both', labelsize=6)       # Axis tick label size
     ax.title.set_size(5)                           # Title font size
     ax.yaxis.label.set_size(3)                     # Y-axis label

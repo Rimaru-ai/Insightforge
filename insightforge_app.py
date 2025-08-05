@@ -1252,82 +1252,95 @@ from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
-
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
-# Set up OpenAI API key
+# Streamlit App Title
+st.title("📊 InsightForge: AI-Powered BI Assistant")
+
+# Sidebar: API key input
 openai_api_key = st.sidebar.text_input("Enter your OpenAI API key", type="password")
 os.environ["OPENAI_API_KEY"] = openai_api_key
 
-# App title
-st.title("📊 InsightForge: AI-Powered BI Assistant")
+# Sidebar: Upload CSV
+uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv")
 
-# Load PDFs and build FAISS vector store (do this only once, cache it)
+# Load and summarize CSV
+def generate_advanced_summary(df):
+    df['Date'] = pd.to_datetime(df['Date'])
+    df['Month'] = df['Date'].dt.to_period('M')
+    total = df['Sales'].sum()
+    avg = df['Sales'].mean()
+    best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
+    top_product = df.groupby('Product')['Sales'].sum().idxmax()
+    best_region = df.groupby('Region')['Sales'].sum().idxmax()
+    return f"""
+📈 **Sales Summary**
+- Total Sales: ₹{total:,.0f}
+- Average Sale: ₹{avg:.2f}
+- Best Month: {best_month}
+- Top Product: {top_product}
+- Best Performing Region: {best_region}
+"""
+
+# Load PDFs and create FAISS vectorstore
 @st.cache_resource
-def build_vectorstore():
+def load_vectorstore():
     pdf_paths = [
         "AI-business-model-innovation.pdf",
         "BI-approaches.pdf",
-        "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer.pdf",
-        "Walmarts-sales-data-analysis.pdf"
+        "Time-Series-Data-Prediction.pdf",
+        "Walmart-sales-analysis.pdf"
     ]
     all_docs = []
     for path in pdf_paths:
         loader = PyPDFLoader(path)
         all_docs.extend(loader.load())
-
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(all_docs)
-
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    vectorstore = FAISS.from_documents(chunks, embeddings)
-    return vectorstore
+    return FAISS.from_documents(chunks, embeddings)
 
-vectorstore = build_vectorstore()
+vectorstore = load_vectorstore()
 
-# Upload and summarize sales CSV
-def generate_summary(df):
-    df['Date'] = pd.to_datetime(df['Date'])
-    df['Month'] = df['Date'].dt.to_period('M')
-    total_sales = df['Sales'].sum()
-    avg = df['Sales'].mean()
-    best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
-    top_product = df.groupby('Product')['Sales'].sum().idxmax()
-
-    return f"""
-Total Sales: ₹{total_sales:,}
-Average Sale: ₹{avg:.2f}
-Best Month: {best_month}
-Top Product: {top_product}
-"""
-
-# Upload sales data
-uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv")
+# Show uploaded data summary
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    summary = generate_summary(df)
-    st.sidebar.success("Sales data uploaded.")
-    st.subheader("📄 Data Summary")
+    summary = generate_advanced_summary(df)
+    st.sidebar.success("✅ Sales data uploaded")
     st.markdown(summary)
 
-    # Memory + Retrieval-based chat
+    # Initialize LLM and memory
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-    rag_chain = ConversationalRetrievalChain.from_llm(
-        llm=llm,
-        retriever=vectorstore.as_retriever(),
-        memory=memory,
-        verbose=False
-    )
-
-    # Chat interface
-    st.subheader("💬 Ask a Question")
+    # Ask a question
+    st.subheader("💬 Ask a Business Question")
     user_input = st.text_input("Type your question...")
 
     if user_input:
-        full_prompt = f"{summary}\n\n{user_input}"
+        # Retrieve relevant PDF context
+        docs = vectorstore.similarity_search(user_input, k=3)
+        context = "\n\n".join([doc.page_content for doc in docs])
+
+        # Full prompt injection
+        full_prompt = f"""
+SALES DATA SUMMARY:
+{summary}
+
+PDF CONTEXT:
+{context}
+
+QUESTION:
+{user_input}
+"""
+        # Run RAG conversation
+        rag_chain = ConversationalRetrievalChain.from_llm(
+            llm=llm,
+            retriever=vectorstore.as_retriever(),
+            memory=memory,
+            verbose=False
+        )
         response = rag_chain.run(full_prompt)
         st.markdown(f"**🧠 InsightForge:** {response}")
 

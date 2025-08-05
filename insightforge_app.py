@@ -1269,19 +1269,26 @@ uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv
 def generate_advanced_summary(df):
     df['Date'] = pd.to_datetime(df['Date'])
     df['Month'] = df['Date'].dt.to_period('M')
+
     total = df['Sales'].sum()
     avg = df['Sales'].mean()
     best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
     top_product = df.groupby('Product')['Sales'].sum().idxmax()
+    worst_product = df.groupby('Product')['Sales'].sum().idxmin()
     best_region = df.groupby('Region')['Sales'].sum().idxmax()
-    return f"""
-📈 **Sales Summary**
+    worst_region = df.groupby('Region')['Sales'].sum().idxmin()
+
+    return f\"\"\"\n📈 **Sales Summary**\n
 - Total Sales: ₹{total:,.0f}
 - Average Sale: ₹{avg:.2f}
 - Best Month: {best_month}
 - Top Product: {top_product}
+- Lowest Selling Product: {worst_product}
 - Best Performing Region: {best_region}
-"""
+- Worst Performing Region: {worst_region}
+\"\"\"\n
+
+    
 
 # Load PDFs and create FAISS vectorstore
 @st.cache_resource

@@ -1269,8 +1269,8 @@ def build_vectorstore():
     pdf_paths = [
         "AI-business-model-innovation.pdf",
         "BI-approaches.pdf",
-        "Time-Series-Data-Prediction.pdf",
-        "Walmart-sales-analysis.pdf"
+        "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer.pdf",
+        "Walmarts-sales-data-analysis.pdf"
     ]
     all_docs = []
     for path in pdf_paths:

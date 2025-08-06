@@ -769,11 +769,15 @@ def load_vectorstore(uploaded_files):
 
 vectorstore, all_chunks = load_vectorstore(additional_pdfs)
 
-# Chat Memory & LLM Setup
+# Chat history state
+if "chat_pairs" not in st.session_state:
+    st.session_state.chat_pairs = []
+
+# Chat LLM and memory
 llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
 memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-# Main Flow
+# Main App Flow
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     df['Date'] = pd.to_datetime(df['Date'])
@@ -824,9 +828,8 @@ QUESTION:
         )
         response = rag_chain.run(full_prompt)
 
-        # Save messages
-        memory.chat_memory.add_user_message(user_input)
-        memory.chat_memory.add_ai_message(response)
+        # Save clean Q&A to session state (not full prompt)
+        st.session_state.chat_pairs.insert(0, {"question": user_input, "answer": response})
 
         # Show response
         st.markdown(f"**🧠 InsightForge:** {response}")
@@ -844,18 +847,22 @@ QUESTION:
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
 
-    # Chat History (Reverse Scroll)
+    # Reversed chat history UI
     st.subheader("🗂️ Chat History")
-
     chat_html = """
     <div style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column-reverse; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
     """
-    messages = memory.chat_memory.messages[::-1]  # Reverse the list (newest first)
-    for msg in messages:
-        role = "User" if msg.type == "human" else "AI"
-        chat_html += f"<div><b>{role}:</b> {msg.content}</div><hr style='margin:4px 0;'>"
+    for pair in st.session_state.chat_pairs:
+        chat_html += f"""
+        <div style="margin-bottom: 12px;">
+            <b>QUESTION:</b> {pair['question']}<br>
+            <b>AI:</b> {pair['answer']}
+        </div>
+        <hr style="margin: 4px 0;">
+        """
     chat_html += "</div>"
     st.markdown(chat_html, unsafe_allow_html=True)
+
 
 
 

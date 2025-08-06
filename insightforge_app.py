@@ -672,7 +672,7 @@ st.title("📊 InsightForge: AI-Powered BI Assistant")
 openai_api_key = st.sidebar.text_input("Enter your OpenAI API key", type="password")
 
 uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv")
-additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", type="pdf", accept_multiple_files=True)
+additional_pdfs = st.sidebar.file_uploader("Upload reference PDFs", type="pdf", accept_multiple_files=True)
 
 # Summary Generator
 def generate_advanced_summary(df):
@@ -745,22 +745,19 @@ def plot_monthly_trend(df):
 # Load PDFs and Create Vectorstore
 @st.cache_resource
 def load_vectorstore(uploaded_files):
-    default_pdfs = [
-        "AI-business-model-innovation.pdf",
-        "BI-approaches.pdf",
-        "Time-Series-Data-Prediction-using-IoT-and-Machine-Le_2020_Procedia-Computer.pdf",
-        "Walmarts-sales-data-analysis.pdf"
-    ]
     all_docs = []
-    for path in default_pdfs:
-        loader = PyPDFLoader(path)
-        all_docs.extend(loader.load())
+
     if uploaded_files:
         for pdf in uploaded_files:
             with open(f"/tmp/{pdf.name}", "wb") as f:
                 f.write(pdf.read())
             loader = PyPDFLoader(f"/tmp/{pdf.name}")
             all_docs.extend(loader.load())
+
+    if not all_docs:
+        # If no PDFs uploaded, return empty vectorstore and empty chunks
+        return None, []
+
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(all_docs)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=openai_api_key)
@@ -797,7 +794,7 @@ if uploaded_file:
     st.subheader("💬 Ask a Business Question")
     user_input = st.text_input("Type your question and press Enter")
 
-    if user_input:
+    if user_input and vectorstore:
         llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
         memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
@@ -851,13 +848,3 @@ QUESTION:
         st.markdown(f"**QUESTION:** {pair['question']}")
         st.markdown(f"**AI:** {pair['answer']}")
         st.markdown("---")  # Divider
-
-
-
-
-
-
-
-
-
-

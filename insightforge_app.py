@@ -587,7 +587,7 @@ vectorstore = load_vectorstore(additional_pdfs)
 
 def suggest_questions(summary):
     llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    suggestion_prompt = f"""Given this sales summary:
+    suggestion_prompt = f""Given this sales summary:
 {summary}
 
 Suggest 3 smart business questions to ask."

@@ -319,7 +319,7 @@ def plot_product_sales(df):
 #     st.pyplot(fig)
 
 def plot_monthly_trend(df):
-    monthly_sales = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
+    monthly_sales = df.groupby('Date')['Sales'].sum().reset_index()
     fig, ax = plt.subplots(figsize=(4, 2.5))  # Smaller figure size
     ax.plot(monthly_sales['Date'], monthly_sales['Sales'], marker='o', linewidth=2)
     ax.set_title('Monthly Sales Trend', fontsize=10)

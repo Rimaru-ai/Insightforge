@@ -655,7 +655,7 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 from io import BytesIO
-from langchain.embeddings import OpenAIEmbeddings
+from langchain_community.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
 from langchain.memory import ConversationBufferMemory
@@ -670,7 +670,6 @@ st.title("📊 InsightForge: AI-Powered BI Assistant")
 
 # Sidebar: API Key and File Uploads
 openai_api_key = st.sidebar.text_input("Enter your OpenAI API key", type="password")
-os.environ["OPENAI_API_KEY"] = openai_api_key
 
 uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv")
 additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", type="pdf", accept_multiple_files=True)
@@ -699,7 +698,7 @@ def generate_advanced_summary(df):
 
 # Suggestion Generator
 def suggest_questions(summary):
-    llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
+    llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7, openai_api_key=openai_api_key)
     suggestion_prompt = f"""Given this sales summary:
 {summary}
 
@@ -764,7 +763,7 @@ def load_vectorstore(uploaded_files):
             all_docs.extend(loader.load())
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(all_docs)
-    embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
+    embeddings = OpenAIEmbeddings(model="text-embedding-3-small", openai_api_key=openai_api_key)
     return FAISS.from_documents(chunks, embeddings), chunks
 
 vectorstore, all_chunks = load_vectorstore(additional_pdfs)
@@ -772,10 +771,6 @@ vectorstore, all_chunks = load_vectorstore(additional_pdfs)
 # Chat history state
 if "chat_pairs" not in st.session_state:
     st.session_state.chat_pairs = []
-
-# Chat LLM and memory
-llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 # Main App Flow
 if uploaded_file:
@@ -803,6 +798,9 @@ if uploaded_file:
     user_input = st.text_input("Type your question and press Enter")
 
     if user_input:
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0, openai_api_key=openai_api_key)
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
         docs = vectorstore.similarity_search(user_input, k=3)
         context = "\n\n".join([doc.page_content for doc in docs])
 
@@ -853,6 +851,7 @@ QUESTION:
         st.markdown(f"**QUESTION:** {pair['question']}")
         st.markdown(f"**AI:** {pair['answer']}")
         st.markdown("---")  # Divider
+
 
 
 

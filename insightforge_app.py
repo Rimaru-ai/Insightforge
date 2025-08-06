@@ -587,10 +587,10 @@ vectorstore = load_vectorstore(additional_pdfs)
 
 def suggest_questions(summary):
     llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    suggestion_prompt = f"Given this sales summary:
+    suggestion_prompt = f"""Given this sales summary:
 {summary}
 
-Suggest 3 smart business questions to ask."
+Suggest 3 smart business questions to ask."""
     return llm_temp.predict(suggestion_prompt)
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
@@ -653,6 +653,7 @@ QUESTION:
             predictions = [{"result": response}]
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
+
 
 
 

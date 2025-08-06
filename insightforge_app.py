@@ -847,21 +847,13 @@ QUESTION:
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
 
-    # Reversed chat history UI
+    # Reversed chat history - PLAIN TEXT, no HTML
     st.subheader("🗂️ Chat History")
-    chat_html = """
-    <div style="max-height: 300px; overflow-y: auto; display: flex; flex-direction: column-reverse; border: 1px solid #ddd; padding: 10px; border-radius: 8px;">
-    """
-    for pair in st.session_state.chat_pairs:
-        chat_html += f"""
-        <div style="margin-bottom: 12px;">
-            <b>QUESTION:</b> {pair['question']}<br>
-            <b>AI:</b> {pair['answer']}
-        </div>
-        <hr style="margin: 4px 0;">
-        """
-    chat_html += "</div>"
-    st.markdown(chat_html, unsafe_allow_html=True)
+    for pair in st.session_state.chat_pairs[::-1]:  # Newest first
+        st.markdown(f"**QUESTION:** {pair['question']}")
+        st.markdown(f"**AI:** {pair['answer']}")
+        st.markdown("---")  # Divider
+
 
 
 

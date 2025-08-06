@@ -296,9 +296,10 @@ def plot_region_sales(df):
 
 
 
+
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
-    fig, ax = plt.subplots(figsize=(3, 1.8))
+    fig, ax = plt.subplots(figsize=(3.1, 1.7))
     bars = ax.bar(product_sales.index, product_sales.values, color='lightgreen')
     lowest = product_sales.idxmin()
     bars[list(product_sales.index).index(lowest)].set_color('orange')
@@ -309,14 +310,16 @@ def plot_product_sales(df):
 
 
 
+
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
-    fig, ax = plt.subplots(figsize=(3, 1.8))
+    fig, ax = plt.subplots(figsize=(3.1, 1.7))
     monthly.plot(ax=ax, marker='o')
     ax.set_title('Monthly Sales Trend', fontsize=8)
     ax.set_ylabel('Sales', fontsize=7)
     ax.tick_params(axis='both', labelsize=6)
     st.pyplot(fig)
+
 
 
 

@@ -783,11 +783,6 @@ if uploaded_file:
         st.sidebar.markdown("**🤔 Suggested Questions:**")
         st.sidebar.markdown(suggestions)
 
-    if st.button("💡 Suggest Questions"):
-        suggestions = suggest_questions(summary)
-        st.markdown("**🤔 Suggested Questions:**")
-        st.markdown(suggestions)
-
     st.subheader("📊 Monthly Sales Trend")
     plot_monthly_trend(df)
 

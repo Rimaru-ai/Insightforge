@@ -420,6 +420,7 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 from io import BytesIO
+
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
@@ -428,8 +429,8 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.document_loaders import PyPDFLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.evaluation.qa import QAEvalChain
-import numpy as np
 
+# Streamlit App Title
 st.set_page_config(page_title="InsightForge", page_icon="📊", layout="wide")
 st.title("📊 InsightForge: AI-Powered BI Assistant")
 
@@ -443,7 +444,7 @@ uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv
 # Sidebar: Upload additional PDFs
 additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", type="pdf", accept_multiple_files=True)
 
-# Sidebar: Filters (initially empty)
+# Initialize filters in sidebar
 selected_region = st.sidebar.selectbox("Filter by Region", options=["All"])
 selected_product = st.sidebar.selectbox("Filter by Product", options=["All"])
 
@@ -473,10 +474,14 @@ def generate_advanced_summary(df):
 - Worst Performing Region: {worst_region}
 """
 
+# Chart Renderer
+
 def render_chart(fig):
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
     st.image(buf)
+
+# Region Chart
 
 def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
@@ -489,6 +494,8 @@ def plot_region_sales(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
+# Product Chart
+
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -500,6 +507,8 @@ def plot_product_sales(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
+# Monthly Trend Chart
+
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -509,6 +518,7 @@ def plot_monthly_trend(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
+# Load PDFs and create FAISS vectorstore
 @st.cache_resource
 def load_vectorstore(uploaded_files):
     default_pdfs = [
@@ -534,8 +544,18 @@ def load_vectorstore(uploaded_files):
 
 vectorstore = load_vectorstore(additional_pdfs)
 
+def suggest_questions(summary):
+    llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
+    suggestion_prompt = f"""Given this sales summary:
+{summary}
+
+Suggest 3 smart business questions to ask."""
+    return llm_temp.predict(suggestion_prompt)
+
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+    df['Date'] = pd.to_datetime(df['Date'])
+
     if selected_region != "All":
         df = df[df['Region'] == selected_region]
     if selected_product != "All":
@@ -545,32 +565,45 @@ if uploaded_file:
     st.sidebar.success("✅ Sales data uploaded")
 
     if st.sidebar.button("💡 Suggest Questions"):
-        llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-        suggestion_prompt = f"Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."
-        suggestions = llm_temp.predict(suggestion_prompt)
+        suggestions = suggest_questions(summary)
         st.sidebar.markdown("**🤔 Suggested Questions:**")
         st.sidebar.markdown(suggestions)
 
     st.markdown(summary)
 
-    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    # ------------------ QUESTION INPUT + AUTO CLEAR ------------------ #
+    if "clear_input" not in st.session_state:
+        st.session_state.clear_input = False
 
-    st.subheader("📊 Dynamic Charts (based on your question)")
+    if "user_question" not in st.session_state:
+        st.session_state.user_question = ""
+
+    def clear_text():
+        st.session_state.user_question = ""
+        st.session_state.clear_input = False
+
+    if st.session_state.clear_input:
+        clear_text()
+
     st.subheader("💬 Ask a Business Question")
-    input_key = "user_question"
-    user_input = st.text_input("Type your question and press Enter", key=input_key)
+    user_input = st.text_input("Type your question and press Enter", key="user_question")
 
     if user_input:
-        st.session_state[input_key] = ""
+        st.session_state.clear_input = True
+
+        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+        docs = vectorstore.similarity_search(user_input, k=3)
+        context = "\n\n".join([doc.page_content for doc in docs])
 
         intent_prompt = f"Classify the intent of this business question: '{user_input}'\nChoose from: trend, comparison, strategy, forecast, region, product, other."
         intent = llm.predict(intent_prompt).strip()
         st.caption(f"🧭 Detected intent: `{intent}`")
 
-        docs = vectorstore.similarity_search(user_input, k=3)
-        context = "\n\n".join([doc.page_content for doc in docs])
         full_prompt = f"""
+You are a business analyst.
+
 Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say "I don't know".
 
 SALES SUMMARY:
@@ -595,14 +628,6 @@ QUESTION:
             plot_region_sales(df)
         elif "product" in user_input.lower() or "widget" in user_input.lower():
             plot_product_sales(df)
-
-        st.subheader("🗂️ Chat History")
-        for i in range(0, len(memory.chat_memory.messages), 2):
-            if i+1 < len(memory.chat_memory.messages):
-                user_msg = memory.chat_memory.messages[i].content
-                ai_msg = memory.chat_memory.messages[i+1].content
-                st.markdown(f"**User:** {user_msg}")
-                st.markdown(f"**AI:** {ai_msg}")
 
         if st.button("🧪 Evaluate Answer"):
             eval_chain = QAEvalChain.from_llm(llm)

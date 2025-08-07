@@ -233,7 +233,7 @@ def generate_advanced_summary(df):
     total = df['Sales'].sum()
     avg = df['Sales'].mean()
     median = df['Sales'].median()
-    std = df['Sales'].std()
+    std_dev = df['Sales'].std()
     best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
     top_product = df.groupby('Product')['Sales'].sum().idxmax()
     worst_product = df.groupby('Product')['Sales'].sum().idxmin()
@@ -244,7 +244,7 @@ def generate_advanced_summary(df):
 - Total Sales: ₹{total:,.0f}
 - Average Sale: ₹{avg:.2f}
 - Median Sale: ₹{median:.2f}
-- Std Deviation: ₹{std:.2f}
+- Std Deviation: ₹{std_dev:.2f}
 - Best Month: {best_month}
 - Top Product: {top_product}
 - Lowest Selling Product: {worst_product}
@@ -253,12 +253,14 @@ def generate_advanced_summary(df):
 """
 
 # Chart Renderer
+
 def render_chart(fig):
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
     st.image(buf)
 
 # Region Chart
+
 def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -271,6 +273,7 @@ def plot_region_sales(df):
     render_chart(fig)
 
 # Product Chart
+
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -283,6 +286,7 @@ def plot_product_sales(df):
     render_chart(fig)
 
 # Monthly Trend Chart
+
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -314,58 +318,52 @@ def load_vectorstore(uploaded_files):
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(all_docs)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    return FAISS.from_documents(chunks, embeddings), chunks
+    return FAISS.from_documents(chunks, embeddings)
 
-vectorstore, all_chunks = load_vectorstore(additional_pdfs)
+vectorstore = load_vectorstore(additional_pdfs)
 
-# Suggest questions
+# Chat memory and initialization
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+chat_history = []
 
-def suggest_questions(summary):
-    llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    suggestion_prompt = f"Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."
-    return llm_temp.predict(suggestion_prompt)
-
+# Show uploaded data summary
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
     summary = generate_advanced_summary(df)
     st.sidebar.success("✅ Sales data uploaded")
-
-    if st.sidebar.button("💡 Suggest Questions"):
-        suggestions = suggest_questions(summary)
-        st.sidebar.markdown("**🤔 Suggested Questions:**")
-        st.sidebar.markdown(suggestions)
-
     st.markdown(summary)
 
-    if st.button("💡 Suggest Questions"):
-        suggestions = suggest_questions(summary)
-        st.markdown("**🤔 Suggested Questions:**")
-        st.markdown(suggestions)
-
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
     st.subheader("📊 Dynamic Charts (based on your question)")
     st.subheader("💬 Ask a Business Question")
     user_input = st.text_input("Type your question...")
 
     if user_input:
-        intent_prompt = f"Classify the intent of this business question: '{user_input}'\nChoose from: trend, comparison, strategy, forecast, region, product, other."
-        intent = llm.predict(intent_prompt).strip()
-        st.caption(f"🧭 Detected intent: `{intent}`")
-
         docs = vectorstore.similarity_search(user_input, k=3)
         context = "\n\n".join([doc.page_content for doc in docs])
+        full_prompt = f"""
+Answer the user's business question based on the context below.
 
-        user_prompt = f"{user_input}"
+SALES SUMMARY:
+{summary}
 
+PDF CONTEXT:
+{context}
+
+QUESTION:
+{user_input}
+"""
         rag_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,
             retriever=vectorstore.as_retriever(),
             memory=memory,
             verbose=False
         )
-        response = rag_chain.run(user_prompt)
+        response = rag_chain.run(full_prompt)
+
+        # Update chat history view
+        chat_history.append((user_input, response))
         st.markdown(f"**🧠 InsightForge:** {response}")
 
         if "region" in user_input.lower():
@@ -380,11 +378,12 @@ if uploaded_file:
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
 
-        st.subheader("📚 Chat History")
-        for i, msg_pair in enumerate(zip(memory.chat_memory.messages[::2], memory.chat_memory.messages[1::2]), 1):
-            user_msg, ai_msg = msg_pair
-            st.markdown(f"**Q{i}:** {user_msg.content}")
-            st.markdown(f"**A{i}:** {ai_msg.content}")
+    # Display full threaded chat history
+    with st.expander("🗂️ Chat History"):
+        for q, a in chat_history:
+            st.markdown(f"<div style='margin-bottom: 1rem;'><b>🧑 User:</b> {q}</div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='margin-left: 1rem; color: #333;'><b>🤖 InsightForge:</b> {a}</div>", unsafe_allow_html=True)
+
 
 
 

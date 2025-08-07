@@ -423,7 +423,6 @@ import pandas as pd
 import os
 import matplotlib.pyplot as plt
 from io import BytesIO
-
 from langchain.embeddings import OpenAIEmbeddings
 from langchain.vectorstores import FAISS
 from langchain.chat_models import ChatOpenAI
@@ -450,6 +449,12 @@ additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", t
 # Sidebar: Filters
 selected_region = st.sidebar.selectbox("Filter by Region", options=["All"])
 selected_product = st.sidebar.selectbox("Filter by Product", options=["All"])
+
+# Session State Initialization
+if "chat_pairs" not in st.session_state:
+    st.session_state.chat_pairs = []
+if "from_suggestion" not in st.session_state:
+    st.session_state.from_suggestion = False
 
 # Load and summarize CSV
 def generate_advanced_summary(df):
@@ -547,43 +552,34 @@ def load_vectorstore(uploaded_files):
 
 vectorstore = load_vectorstore(additional_pdfs)
 
-# Suggest Questions Logic
 def suggest_questions(summary):
     llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    suggestion_prompt = f"""Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."""
+    suggestion_prompt = f"Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."
     return llm_temp.predict(suggestion_prompt)
 
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
+    if selected_region != "All":
+        df = df[df['Region'] == selected_region]
+    if selected_product != "All":
+        df = df[df['Product'] == selected_product]
+
     summary = generate_advanced_summary(df)
     st.sidebar.success("✅ Sales data uploaded")
 
     if st.sidebar.button("💡 Suggest Questions"):
         suggestions = suggest_questions(summary)
         st.sidebar.markdown("**🤔 Suggested Questions:**")
-        for suggested_q in suggestions.strip().split("\n"):
-            if suggested_q.strip():
-                if st.sidebar.button(suggested_q.strip()):
-                    st.session_state.user_question = suggested_q.strip()
-                    st.session_state.from_suggestion = True
+        st.sidebar.markdown(suggestions)
 
     st.markdown(summary)
-
-    if "chat_pairs" not in st.session_state:
-        st.session_state.chat_pairs = []
-
-    if "user_question" not in st.session_state:
-        st.session_state.user_question = ""
-
-    if "from_suggestion" not in st.session_state:
-        st.session_state.from_suggestion = False
 
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
     st.subheader("📊 Dynamic Charts (based on your question)")
     st.subheader("💬 Ask a Business Question")
-    user_input = st.text_input("Type your question and press Enter", key="user_question")
+    user_input = st.text_input("Type your question...", key="user_question")
 
     if user_input:
         docs = vectorstore.similarity_search(user_input, k=3)
@@ -591,7 +587,7 @@ if uploaded_file:
         full_prompt = f"""
 You are a business analyst.
 
-Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say \"I don't know\".
+Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say "I don't know".
 
 SALES SUMMARY:
 {summary}
@@ -609,14 +605,11 @@ QUESTION:
             verbose=False
         )
         response = rag_chain.run(full_prompt)
-        st.markdown(f"**🧠 InsightForge:** {response}")
 
-        if st.session_state.from_suggestion:
-            if not any(pair['question'] == user_input for pair in st.session_state.chat_pairs):
-                st.session_state.chat_pairs.insert(0, {"question": user_input, "answer": response})
-            st.session_state.from_suggestion = False
-        else:
-            st.session_state.chat_pairs.insert(0, {"question": user_input, "answer": response})
+        if not st.session_state.from_suggestion or (user_input, response) not in st.session_state.chat_pairs:
+            st.session_state.chat_pairs.append((user_input, response))
+
+        st.markdown(f"**🧠 InsightForge:** {response}")
 
         if "region" in user_input.lower():
             plot_region_sales(df)
@@ -630,10 +623,14 @@ QUESTION:
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
 
+        st.session_state.user_question = ""
+        st.session_state.from_suggestion = False
+
     if st.session_state.chat_pairs:
         st.markdown("---")
-        st.subheader("🗂️ Chat History")
-        for i, pair in enumerate(st.session_state.chat_pairs):
-            st.markdown(f"**Q{i+1}:** {pair['question']}")
-            st.markdown(f"**A{i+1}:** {pair['answer']}")
+        st.markdown("### 🗂️ Chat History")
+        for idx, (q, a) in enumerate(st.session_state.chat_pairs):
+            with st.expander(f"Q{idx+1}: {q}", expanded=False):
+                st.markdown(f"**🧠 InsightForge:** {a}")
+
 

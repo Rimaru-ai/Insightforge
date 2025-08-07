@@ -444,7 +444,7 @@ uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv
 # Sidebar: Upload additional PDFs
 additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", type="pdf", accept_multiple_files=True)
 
-# Initialize filters in sidebar
+# Sidebar: Filters
 selected_region = st.sidebar.selectbox("Filter by Region", options=["All"])
 selected_product = st.sidebar.selectbox("Filter by Product", options=["All"])
 
@@ -475,14 +475,12 @@ def generate_advanced_summary(df):
 """
 
 # Chart Renderer
-
 def render_chart(fig):
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
     st.image(buf)
 
 # Region Chart
-
 def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -495,7 +493,6 @@ def plot_region_sales(df):
     render_chart(fig)
 
 # Product Chart
-
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -508,7 +505,6 @@ def plot_product_sales(df):
     render_chart(fig)
 
 # Monthly Trend Chart
-
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -544,12 +540,10 @@ def load_vectorstore(uploaded_files):
 
 vectorstore = load_vectorstore(additional_pdfs)
 
+# Suggest Questions Function
 def suggest_questions(summary):
     llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    suggestion_prompt = f"""Given this sales summary:
-{summary}
-
-Suggest 3 smart business questions to ask."""
+    suggestion_prompt = f"""Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."""
     return llm_temp.predict(suggestion_prompt)
 
 if uploaded_file:
@@ -571,36 +565,20 @@ if uploaded_file:
 
     st.markdown(summary)
 
-    # ------------------ QUESTION INPUT + AUTO CLEAR ------------------ #
-    if "clear_input" not in st.session_state:
-        st.session_state.clear_input = False
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
+    memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+
+    st.subheader("📊 Dynamic Charts (based on your question)")
+    st.subheader("💬 Ask a Business Question")
 
     if "user_question" not in st.session_state:
         st.session_state.user_question = ""
 
-    def clear_text():
-        st.session_state.user_question = ""
-        st.session_state.clear_input = False
+    question_input = st.text_input("Type your question and press Enter", key="user_question")
 
-    if st.session_state.clear_input:
-        clear_text()
-
-    st.subheader("💬 Ask a Business Question")
-    user_input = st.text_input("Type your question and press Enter", key="user_question")
-
-    if user_input:
-        st.session_state.clear_input = True
-
-        llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
-        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
-        docs = vectorstore.similarity_search(user_input, k=3)
+    if question_input:
+        docs = vectorstore.similarity_search(question_input, k=3)
         context = "\n\n".join([doc.page_content for doc in docs])
-
-        intent_prompt = f"Classify the intent of this business question: '{user_input}'\nChoose from: trend, comparison, strategy, forecast, region, product, other."
-        intent = llm.predict(intent_prompt).strip()
-        st.caption(f"🧭 Detected intent: `{intent}`")
-
         full_prompt = f"""
 You are a business analyst.
 
@@ -613,7 +591,7 @@ PDF CONTEXT:
 {context}
 
 QUESTION:
-{user_input}
+{question_input}
 """
         rag_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,
@@ -624,14 +602,25 @@ QUESTION:
         response = rag_chain.run(full_prompt)
         st.markdown(f"**🧠 InsightForge:** {response}")
 
-        if "region" in user_input.lower():
+        if "region" in question_input.lower():
             plot_region_sales(df)
-        elif "product" in user_input.lower() or "widget" in user_input.lower():
+        elif "product" in question_input.lower() or "widget" in question_input.lower():
             plot_product_sales(df)
 
         if st.button("🧪 Evaluate Answer"):
             eval_chain = QAEvalChain.from_llm(llm)
-            examples = [{"query": user_input, "answer": response, "context": context}]
+            examples = [{"query": question_input, "answer": response, "context": context}]
             predictions = [{"result": response}]
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
+
+        # Clear the input field after processing
+        st.session_state.user_question = ""
+
+        # Display Chat History (Formatted)
+        with st.expander("🗂️ Chat History"):
+            for i, msg in enumerate(memory.chat_memory.messages):
+                if msg.type == "human":
+                    st.markdown(f"**🧑‍💼 Question {i//2 + 1}:** {msg.content}")
+                else:
+                    st.markdown(f"**🤖 InsightForge:** {msg.content}")

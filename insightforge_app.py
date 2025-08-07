@@ -49,9 +49,6 @@ def load_vectorstore(uploaded_files):
 
 vectorstore, all_chunks = load_vectorstore(additional_pdfs)
 
-# Filters placeholder (populated after file load)
-region_filter = st.sidebar.selectbox("Filter by Region", options=["All"])
-product_filter = st.sidebar.selectbox("Filter by Product", options=["All"])
 
 # Summary + Stats
 
@@ -132,14 +129,6 @@ if uploaded_file:
 
     region_options = ["All"] + sorted(df['Region'].dropna().unique())
     product_options = ["All"] + sorted(df['Product'].dropna().unique())
-
-    region_filter = st.sidebar.selectbox("Filter by Region", options=region_options)
-    product_filter = st.sidebar.selectbox("Filter by Product", options=product_options)
-
-    if region_filter != "All":
-        df = df[df['Region'] == region_filter]
-    if product_filter != "All":
-        df = df[df['Product'] == product_filter]
 
     summary = generate_advanced_summary(df)
     st.sidebar.success("✅ Sales data uploaded")

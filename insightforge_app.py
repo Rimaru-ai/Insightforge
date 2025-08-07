@@ -220,23 +220,45 @@ st.title("📊 InsightForge: AI-Powered BI Assistant")
 openai_api_key = st.sidebar.text_input("Enter your OpenAI API key", type="password")
 os.environ["OPENAI_API_KEY"] = openai_api_key
 
-# Sidebar: Upload CSV and PDFs
+# Sidebar: Upload CSV
 uploaded_file = st.sidebar.file_uploader("Upload your sales data CSV", type="csv")
+
+# Sidebar: Upload additional PDFs
 additional_pdfs = st.sidebar.file_uploader("Upload additional reference PDFs", type="pdf", accept_multiple_files=True)
 
-# Sidebar Filters
-region_filter = st.sidebar.selectbox("Filter by Region", options=["All"])
-product_filter = st.sidebar.selectbox("Filter by Product", options=["All"])
+# Load and summarize CSV
+def generate_advanced_summary(df):
+    df['Date'] = pd.to_datetime(df['Date'])
+    df['Month'] = df['Date'].dt.to_period('M')
+    total = df['Sales'].sum()
+    avg = df['Sales'].mean()
+    median = df['Sales'].median()
+    std = df['Sales'].std()
+    best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
+    top_product = df.groupby('Product')['Sales'].sum().idxmax()
+    worst_product = df.groupby('Product')['Sales'].sum().idxmin()
+    best_region = df.groupby('Region')['Sales'].sum().idxmax()
+    worst_region = df.groupby('Region')['Sales'].sum().idxmin()
+    return f"""
+📈 **Sales Summary**
+- Total Sales: ₹{total:,.0f}
+- Average Sale: ₹{avg:.2f}
+- Median Sale: ₹{median:.2f}
+- Std Deviation: ₹{std:.2f}
+- Best Month: {best_month}
+- Top Product: {top_product}
+- Lowest Selling Product: {worst_product}
+- Best Performing Region: {best_region}
+- Worst Performing Region: {worst_region}
+"""
 
 # Chart Renderer
-
 def render_chart(fig):
     buf = BytesIO()
     fig.savefig(buf, format="png", dpi=100, bbox_inches="tight")
     st.image(buf)
 
-# Sales Charts
-
+# Region Chart
 def plot_region_sales(df):
     region_sales = df.groupby('Region')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -248,6 +270,7 @@ def plot_region_sales(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
+# Product Chart
 def plot_product_sales(df):
     product_sales = df.groupby('Product')['Sales'].sum().sort_values()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -259,6 +282,7 @@ def plot_product_sales(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
+# Monthly Trend Chart
 def plot_monthly_trend(df):
     monthly = df.groupby(df['Date'].dt.to_period('M'))['Sales'].sum()
     fig, ax = plt.subplots(figsize=(3.1, 1.7))
@@ -268,7 +292,7 @@ def plot_monthly_trend(df):
     ax.tick_params(axis='both', labelsize=6)
     render_chart(fig)
 
-# Load PDFs into FAISS
+# Load PDFs and create FAISS vectorstore
 @st.cache_resource
 def load_vectorstore(uploaded_files):
     default_pdfs = [
@@ -290,55 +314,19 @@ def load_vectorstore(uploaded_files):
     splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     chunks = splitter.split_documents(all_docs)
     embeddings = OpenAIEmbeddings(model="text-embedding-3-small")
-    return FAISS.from_documents(chunks, embeddings)
+    return FAISS.from_documents(chunks, embeddings), chunks
 
-vectorstore = load_vectorstore(additional_pdfs)
+vectorstore, all_chunks = load_vectorstore(additional_pdfs)
 
-# Sales Summary
-
-def generate_advanced_summary(df):
-    df['Date'] = pd.to_datetime(df['Date'])
-    df['Month'] = df['Date'].dt.to_period('M')
-    total = df['Sales'].sum()
-    avg = df['Sales'].mean()
-    median = df['Sales'].median()
-    std_dev = df['Sales'].std()
-    best_month = df.groupby('Month')['Sales'].sum().idxmax().strftime('%B %Y')
-    top_product = df.groupby('Product')['Sales'].sum().idxmax()
-    worst_product = df.groupby('Product')['Sales'].sum().idxmin()
-    best_region = df.groupby('Region')['Sales'].sum().idxmax()
-    worst_region = df.groupby('Region')['Sales'].sum().idxmin()
-    return f"""
-📈 **Sales Summary**
-- Total Sales: ₹{total:,.0f}
-- Average Sale: ₹{avg:.2f}
-- Median Sale: ₹{median:.2f}
-- Std Deviation: ₹{std_dev:.2f}
-- Best Month: {best_month}
-- Top Product: {top_product}
-- Lowest Selling Product: {worst_product}
-- Best Performing Region: {best_region}
-- Worst Performing Region: {worst_region}
-"""
+# Suggest questions
 
 def suggest_questions(summary):
     llm_temp = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0.7)
-    prompt = f"""Given the following sales summary:
-{summary}
+    suggestion_prompt = f"Given this sales summary:\n{summary}\n\nSuggest 3 smart business questions to ask."
+    return llm_temp.predict(suggestion_prompt)
 
-Suggest 3 intelligent business questions that a manager might ask."""
-    return llm_temp.predict(prompt)
-
-# App Logic
 if uploaded_file:
     df = pd.read_csv(uploaded_file)
-    df['Date'] = pd.to_datetime(df['Date'])
-
-    if region_filter != "All":
-        df = df[df['Region'] == region_filter]
-    if product_filter != "All":
-        df = df[df['Product'] == product_filter]
-
     summary = generate_advanced_summary(df)
     st.sidebar.success("✅ Sales data uploaded")
 
@@ -348,58 +336,42 @@ if uploaded_file:
         st.sidebar.markdown(suggestions)
 
     st.markdown(summary)
-    st.subheader("📊 Monthly Sales Trend")
-    plot_monthly_trend(df)
+
+    if st.button("💡 Suggest Questions"):
+        suggestions = suggest_questions(summary)
+        st.markdown("**🤔 Suggested Questions:**")
+        st.markdown(suggestions)
 
     llm = ChatOpenAI(model_name="gpt-3.5-turbo", temperature=0)
     memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
+    st.subheader("📊 Dynamic Charts (based on your question)")
     st.subheader("💬 Ask a Business Question")
     user_input = st.text_input("Type your question...")
 
     if user_input:
-        # Auto Intent
         intent_prompt = f"Classify the intent of this business question: '{user_input}'\nChoose from: trend, comparison, strategy, forecast, region, product, other."
-        detected_intent = llm.predict(intent_prompt).strip()
-        st.caption(f"🧭 Detected intent: `{detected_intent}`")
+        intent = llm.predict(intent_prompt).strip()
+        st.caption(f"🧭 Detected intent: `{intent}`")
 
         docs = vectorstore.similarity_search(user_input, k=3)
         context = "\n\n".join([doc.page_content for doc in docs])
 
-        full_prompt = f"""
-You are a business analyst.
+        user_prompt = f"{user_input}"
 
-Use the SALES SUMMARY and PDF CONTEXT below to answer the question. Prioritize insights from the sales summary. If no answer is found, say \"I don't know\".
-
-SALES SUMMARY:
-{summary}
-
-PDF CONTEXT:
-{context}
-
-QUESTION:
-{user_input}
-"""
         rag_chain = ConversationalRetrievalChain.from_llm(
             llm=llm,
             retriever=vectorstore.as_retriever(),
             memory=memory,
             verbose=False
         )
-        response = rag_chain.run(full_prompt)
+        response = rag_chain.run(user_prompt)
         st.markdown(f"**🧠 InsightForge:** {response}")
 
         if "region" in user_input.lower():
             plot_region_sales(df)
-        elif "product" in user_input.lower():
+        elif "product" in user_input.lower() or "widget" in user_input.lower():
             plot_product_sales(df)
-
-        st.subheader("📁 See Chat History")
-        for i, msg in enumerate(memory.chat_memory.messages):
-            if msg.type == "human":
-                st.markdown(f"**QUESTION {i//2 + 1}:** {msg.content}")
-            else:
-                st.markdown(f"**AI:** {msg.content}")
 
         if st.button("🧪 Evaluate Answer"):
             eval_chain = QAEvalChain.from_llm(llm)
@@ -407,4 +379,11 @@ QUESTION:
             predictions = [{"result": response}]
             grade = eval_chain.evaluate(examples, predictions, prediction_key="result")
             st.markdown(f"**🎓 Evaluation Result:** {grade[0]['results']}")
+
+        st.subheader("📚 Chat History")
+        for i, msg_pair in enumerate(zip(memory.chat_memory.messages[::2], memory.chat_memory.messages[1::2]), 1):
+            user_msg, ai_msg = msg_pair
+            st.markdown(f"**Q{i}:** {user_msg.content}")
+            st.markdown(f"**A{i}:** {ai_msg.content}")
+
 
